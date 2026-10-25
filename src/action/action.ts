@@ -8,6 +8,7 @@ import * as exec from '@actions/exec'
 
 import {Architecture} from '../architecture'
 import * as architecture_factory from '../architectures/factory'
+import * as digest from '../digest'
 import * as hostModule from '../host'
 import {HostCpu} from '../host_cpu'
 import * as os from '../operating_system'
@@ -164,22 +165,15 @@ export class Action {
   }
 
   async downloadDiskImage(): Promise<string> {
-    const imageURL =
-      this.input.imageURL !== ''
-        ? this.input.imageURL
-        : this.operatingSystem.virtualMachineImageUrl
-    core.info(`Downloading disk image: ${imageURL}`)
-    const result = await this.timings.measure(
+    return this.download(
       'disk image',
-      async () => cache.downloadTool(imageURL),
-      {nested: true}
+      this.operatingSystem.virtualMachineImageUrl
     )
-    core.info(`Downloaded file: ${result}`)
-
-    return result
   }
 
+  // Looked up before downloading, so an unpinned file costs nothing.
   async download(type: string, url: string): Promise<string> {
+    const expectedDigest = digest.pinnedDigest(url)
     core.info(`Downloading ${type}: ${url}`)
     const result = await this.timings.measure(
       type,
@@ -187,6 +181,7 @@ export class Action {
       {nested: true}
     )
     core.info(`Downloaded file: ${result}`)
+    await digest.verify(result, url, expectedDigest)
 
     return result
   }
@@ -229,13 +224,9 @@ export class Action {
     return env ? `SendEnv ${env}` : ''
   }
 
-  // A platform whose images accept a credential-less login needs no key -- but
-  // only for the images this action publishes. An image supplied through
-  // `image_url` may well have been built from a release that expects the key on
-  // the resources disk, and there is no way to tell from the outside, so it
-  // keeps getting one.
+  // A platform whose images accept a credential-less login needs no key.
   get requiresSshKey(): boolean {
-    return this.operatingSystem.requiresSshKey || this.input.imageURL !== ''
+    return this.operatingSystem.requiresSshKey
   }
 
   private async setupSSHKey(): Promise<void> {
@@ -799,15 +790,18 @@ fi
     if (!fs.existsSync(this.sshDirectory))
       fs.mkdirSync(this.sshDirectory, {recursive: true, mode: 0o700})
 
-    // The images that don't use a generated key (NetBSD VAX) give the user an
+    // The images that don't use a generated key (NetBSD) give the user an
     // empty password instead, which sshd's keyboard-interactive method accepts
     // without sending a prompt. That needs no configuration of its own: the
     // key is simply never offered, since IdentityFile then names a file that
     // was never generated, and PasswordAuthentication doesn't cover
     // keyboard-interactive.
+    //
+    // StrictHostKeyChecking goes after `Host`, so that it only applies to the
+    // VM and not to every host the runner connects to.
     const lines = [
-      'StrictHostKeyChecking=accept-new',
       `Host ${this.cpaHost}`,
+      'StrictHostKeyChecking accept-new',
       `Port ${this.operatingSystem.ssHostPort}`,
       `IdentityFile ${this.privateSshKey}`,
       'PasswordAuthentication no',

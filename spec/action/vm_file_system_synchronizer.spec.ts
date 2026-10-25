@@ -40,7 +40,7 @@ describe('DefaultVmFileSystemSynchronizer', () => {
         args: [
           '-auz',
           '--exclude',
-          '_actions/cross-platform-actions/action',
+          '_actions/Anton-4/bsd-action',
           '--exclude',
           'that_that_is_excluded',
           '/home/runner/',
@@ -57,7 +57,7 @@ describe('DefaultVmFileSystemSynchronizer', () => {
         args: [
           '-auz',
           '--exclude',
-          '_actions/cross-platform-actions/action',
+          '_actions/Anton-4/bsd-action',
           '/home/runner/',
           'user@cross_platform_actions_host:/boot/home/home/runner'
         ]
@@ -87,7 +87,7 @@ describe('DefaultVmFileSystemSynchronizer', () => {
       expect(executor.execute).toHaveBeenCalledWith('rsync', [
         '-auz',
         '--exclude',
-        '_actions/cross-platform-actions/action',
+        '_actions/Anton-4/bsd-action',
         '--exclude',
         'that_that_is_excluded',
         '/home/runner/',

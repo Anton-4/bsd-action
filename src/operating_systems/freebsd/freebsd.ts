@@ -5,7 +5,7 @@ import * as core from '@actions/core'
 
 import {operatingSystem} from '../factory'
 import * as vmModule from '../../vm'
-import {QemuVm, QemuVmRiscv64} from './qemu_vm'
+import {QemuVm} from './qemu_vm'
 import * as os from '../../operating_system'
 import {LinuxDiskFileCreator, LinuxDiskDeviceCreator} from '../../resource_disk'
 import versions from '../../version'
@@ -55,12 +55,7 @@ export default class FreeBsd extends os.OperatingSystem {
       machineType: this.architecture.machineType
     }
 
-    const qemuVmClass = this.architecture.resolve({
-      riscv64: QemuVmRiscv64,
-      default: QemuVm
-    })
-
-    return new qemuVmClass(
+    return new QemuVm(
       hypervisorDirectory,
       resourcesDirectory,
       this.architecture,

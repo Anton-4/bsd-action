@@ -1,7 +1,5 @@
 import * as core from '@actions/core'
 
-import flatMap from 'array.prototype.flatmap'
-
 import {Executor, ExecExecutor} from './utility'
 import {Input} from './action/input'
 import {SyncDirection} from './action/sync_direction'
@@ -68,8 +66,8 @@ export class DefaultVmFileSystemSynchronizer
       // prettier-ignore
       args: [
         this.rsyncFlags,
-        '--exclude', '_actions/cross-platform-actions/action',
-        ...flatMap(excludePaths, p => ['--exclude', p]),
+        '--exclude', '_actions/Anton-4/bsd-action',
+        ...excludePaths.flatMap(p => ['--exclude', p]),
         toDirectoryPath(this.hostHomeDirectory),
         stripDirectoryPath(this.rsyncTarget)
       ]

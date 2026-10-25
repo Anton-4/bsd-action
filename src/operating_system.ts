@@ -139,9 +139,8 @@ export abstract class OperatingSystem {
   static readonly diskName = 'disk.img'
 
   // Decided by what the file turned out to be rather than by what this platform
-  // publishes today, because `image_url` lets a user supply an image this action
-  // never built. Three formats have shipped: qcow2, a bare zstd compressed raw
-  // image, and the bundle.
+  // publishes today. Three formats have shipped: qcow2, a bare zstd compressed
+  // raw image, and the bundle.
   async prepareDisk(
     diskImage: fs.PathLike,
     targetDiskName: fs.PathLike,

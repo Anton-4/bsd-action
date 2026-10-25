@@ -1,13 +1,35 @@
-# Cross-Platform GitHub Action
+# BSD Action
 
-This project provides a GitHub action for running GitHub Actions workflows on
-multiple platforms, including platforms that GitHub Actions doesn't currently natively support.
+A trimmed fork of [Cross-Platform Action][upstream] that runs workflow steps in
+a FreeBSD, NetBSD or OpenBSD virtual machine on a Linux runner. It differs from
+upstream in a few ways:
 
-> [!IMPORTANT]
-> This readme documents the `master` branch, which may describe features and
-> operating system versions that have not been released yet. For the
-> documentation matching the latest release, see the
-> [readme for the latest release](https://github.com/cross-platform-actions/action/blob/v1/readme.md).
+- **Every download is pinned by digest.** The disk images and QEMU archives are
+  GitHub release assets, which can be replaced after a release is published.
+  The action looks up each file's sha256 in [`src/digests.json`](src/digests.json)
+  before downloading it, and fails if the file doesn't match.
+- **No unpinned sources.** The `image_url` input and the `CPA_RESOURCE_URL`
+  environment variable are gone, so every file the action boots comes from a
+  URL with a pinned digest.
+- **Only the BSDs.** FreeBSD, NetBSD and OpenBSD on `x86-64` and `arm64`.
+  DragonFly BSD, MidnightBSD, Haiku, OmniOS, `riscv64` and VAX are removed.
+- **SSH settings scoped to the VM.** `StrictHostKeyChecking accept-new` only
+  applies to the VM's host entry, not every host the runner connects to.
+- **No releases.** Use the action by commit SHA:
+  `uses: Anton-4/bsd-action@<full commit sha>`.
+
+### Updating
+
+- **Pull upstream:** `git fetch upstream && git merge upstream/master`, then
+  `npm ci --ignore-scripts && npm run all` to rebuild `dist/`. When the merge
+  conflicts on a removed platform, keep it removed.
+- **Bump an image or QEMU release:** change the tag in
+  [`src/version.ts`](src/version.ts), run `npm run update-digests`, review the
+  diff of `src/digests.json`, then `npm run all`.
+- `npm run check-digests` (also run in CI) fails when the pinned digests no
+  longer match what GitHub serves.
+
+[upstream]: https://github.com/cross-platform-actions/action
 
 ## `Features`
 
@@ -43,7 +65,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Start VM
-        uses: cross-platform-actions/action@v1.6.0
+        uses: Anton-4/bsd-action@<full commit sha>
         with:
           operating_system: freebsd
           version: '15.1'
@@ -60,11 +82,10 @@ jobs:
 
 ### Full Example
 
-Here's a sample workflow file which will set up a matrix resulting in nine
+Here's a sample workflow file which will set up a matrix resulting in five
 jobs. One which will run on FreeBSD 15.1, one which runs OpenBSD 8.0, one which
-runs NetBSD 11.0, one which runs OpenBSD 7.9 on ARM64, one which runs NetBSD
-11.0 on ARM64, one which runs DragonFly BSD 6.4.2, one which runs MidnightBSD
-4.0.4, one which runs Haiku R1/beta6 and one which runs OmniOS r151056.
+runs NetBSD 11.0, one which runs OpenBSD 8.0 on ARM64 and one which runs NetBSD
+11.0 on ARM64.
 
 ```yaml
 name: CI
@@ -100,27 +121,11 @@ jobs:
             architecture: arm64
             version: '11.0'
 
-          - name: dragonflybsd
-            architecture: x86-64
-            version: '6.4.2'
-
-          - name: midnightbsd
-            architecture: x86-64
-            version: '4.0.4'
-
-          - name: haiku
-            architecture: x86-64
-            version: 'r1beta6'
-
-          - name: omnios
-            architecture: x86-64
-            version: 'r151056'
-
     steps:
       - uses: actions/checkout@v6
 
       - name: Start VM on ${{ matrix.os.name }}
-        uses: cross-platform-actions/action@v1.6.0
+        uses: Anton-4/bsd-action@<full commit sha>
         env:
           MY_ENV1: MY_ENV1
           MY_ENV2: MY_ENV2
@@ -229,7 +234,6 @@ This section lists the available inputs for the action.
 | `memory`                | ❌       | `6G`              | string  | The amount of memory for the virtual machine.                                                                                                                                                                                                                |
 | `cpu_count`             | ❌       | `2`               | integer | The number of CPU cores for the virtual machine.                                                                                                                                                                                                             |
 | `variant`               | ❌       | `default`         | string  | Which variant of the operating system to run. See [Variants](#variants-variant). Valid values are `default` and, where the platform has it, `microvm`.                                                                                                       |
-| `image_url`             | ❌       | ❌                | string  | URL a custom VM image that should be used in place of the default ones.                                                                                                                                                                                      |
 | `sync_files`            | ❌       | `true`            | string  | Specifies if the local files should be synchronized to the virtual machine and in which direction. Valid values are `true`, `false`, `runner-to-vm` and `vm-to-runner`. `true` synchronizes files in both directions. `false` disables file synchronization. |
 | `shutdown_vm`           | ❌       | conditional       | boolean | **Deprecated.** Specifies if the VM should be shutdown after the action has been run. If unset, defaults to `true` when `run` is provided and `false` otherwise. There is no replacement.                                                                    |
 
@@ -255,7 +259,7 @@ ones it does, rather than a silent fallback.
 | `microvm` | NetBSD 11 on `x86-64` | Boots the kernel directly on QEMU's `microvm` machine type, which has no boot loader, no PCI bus and no ACPI. |
 
 ```yaml
-- uses: cross-platform-actions/action@v1
+- uses: Anton-4/bsd-action@<full commit sha>
   with:
     operating_system: netbsd
     version: '11.0'
@@ -274,29 +278,6 @@ inspects hardware will notice:
 
 It also needs an image new enough to ship a kernel beside its disk. Asking for
 it with an older image is an error rather than a slow boot.
-
-#### Custom VM Image (`image_url`)
-
-With the `image_url` input it's possible to specify a custom virtual machine
-image. The main reason for this feature is to do additional custom
-provisioning, like installing additional packages. This allows to pre-install
-everything that is needed for a CI job beforhand, which can save time later
-when the job is run.
-
-Only existing operating systems, architectures and versions are supported.
-
-##### Building a Custom VM Image
-
-1. Fork one of the existing [*builder repositories ](https://github.com/cross-platform-actions/?q=builder)
-1. Add the additional provisioning to the `resources/custom.sh` script. Don't
-    remove any existing provisioning scripts.
-1. Adjust the CI workflow to remove any unwanted architectures or versions
-1. Create and push a new tag
-1. This will launch the CI workflow, build the image(s) and create a draft
-    GitHub release. The VM image(s) are automatically attached to the release
-1. Edit the release to publish it
-1. Copy the URL for the VM image
-1. Use the URL with the `image_url` input
 
 ## `Supported Platforms`
 
@@ -322,79 +303,36 @@ operating system will list which versions are supported.
 
 ### [FreeBSD][freebsd_builder] (`freebsd`)
 
-| Version | x86-64 | arm64  | riscv64 |
-| ------- | ------ | ------ | ------- |
-| 15.1    | ✅     | ✅     | ✅      |
-| 15.0    | ✅     | ✅     | ✅      |
-| 14.5    | ✅     | ✅     | ❌      |
-| 14.4    | ✅     | ✅     | ❌      |
-| 14.3    | ✅     | ✅     | ❌      |
-| 14.2    | ✅     | ✅     | ❌      |
-| 14.1    | ✅     | ✅     | ❌      |
-| 14.0    | ✅     | ✅     | ❌      |
-| 13.5    | ✅     | ✅     | ❌      |
-| 13.4    | ✅     | ✅     | ❌      |
-| 13.3    | ✅     | ✅     | ❌      |
-| 13.2    | ✅     | ✅     | ❌      |
-| 13.1    | ✅     | ✅     | ❌      |
-| 13.0    | ✅     | ✅     | ❌      |
-| 12.4    | ✅     | ✅     | ❌      |
-| 12.2    | ✅     | ❌     | ❌      |
+| Version | x86-64 | arm64  |
+| ------- | ------ | ------ |
+| 15.1    | ✅     | ✅     |
+| 15.0    | ✅     | ✅     |
+| 14.5    | ✅     | ✅     |
+| 14.4    | ✅     | ✅     |
+| 14.3    | ✅     | ✅     |
+| 14.2    | ✅     | ✅     |
+| 14.1    | ✅     | ✅     |
+| 14.0    | ✅     | ✅     |
+| 13.5    | ✅     | ✅     |
+| 13.4    | ✅     | ✅     |
+| 13.3    | ✅     | ✅     |
+| 13.2    | ✅     | ✅     |
+| 13.1    | ✅     | ✅     |
+| 13.0    | ✅     | ✅     |
+| 12.4    | ✅     | ✅     |
+| 12.2    | ✅     | ❌     |
 
 ### [NetBSD][netbsd_builder] (`netbsd`)
 
-| Version | x86-64 | arm64 | vax   |
-|---------|--------|-------|-------|
-| 11.0    | ✅     | ✅    | ✅    |
-| 10.1    | ✅     | ✅    | ✅    |
-| 10.0    | ✅     | ✅    | ❌    |
-| 9.5     | ✅     | ❌    | ❌    |
-| 9.4     | ✅     | ❌    | ❌    |
-| 9.3     | ✅     | ❌    | ❌    |
-| 9.2     | ✅     | ❌    | ❌    |
-
-Note, the VAX architecture runs on the [SIMH][simh_builder] simulator
-(MicroVAX 3900) instead of QEMU and comes with a couple of limitations:
-
-* The MicroVAX 3900 supports at most 512 MB of memory and a single CPU. The
-    `memory` input is rounded down to the largest supported size
-    (16M, 32M, 64M, 128M, 256M or 512M) and the `cpu_count` input is ignored.
-* The emulated VAX is slow; it takes several minutes to boot before the VM
-    becomes reachable.
-* Rebooting the VM (`cpa.sh --reboot`) is not supported: the emulated KA655
-    firmware self-test is unreliable when the machine is restarted inside the
-    same simulator process.
-* The X11 sets are not installed on VAX due to the lack of a display.
-
-### [DragonFly BSD][dragonflybsd_builder] (`dragonflybsd`)
-
-| Version | x86-64 |
-|---------|--------|
-| 6.4.2   | ✅     |
-
-### [MidnightBSD][midnightbsd_builder] (`midnightbsd`)
-
-| Version | x86-64 |
-|---------|--------|
-| 4.0.4   | ✅     |
-
-### [Haiku][haiku_builder] (`haiku`)
-
-Note, Haiku is a single user system. That means the user that runs the the job
-is the default (and only) user, `user`, instead of `runner`, as for the other
-operating systems.
-
-| Version | x86-64 |
-|---------|--------|
-| r1beta6 | ✅     |
-| r1beta5 | ✅     |
-
-### [OmniOS][omnios_builder] (`omnios`)
-
-| Version | x86-64 |
-|---------|--------|
-| r151058 | ✅     |
-| r151056 | ✅     |
+| Version | x86-64 | arm64 |
+|---------|--------|-------|
+| 11.0    | ✅     | ✅    |
+| 10.1    | ✅     | ✅    |
+| 10.0    | ✅     | ✅    |
+| 9.5     | ✅     | ❌    |
+| 9.4     | ✅     | ❌    |
+| 9.3     | ✅     | ❌    |
+| 9.2     | ✅     | ❌    |
 
 ### Architectures
 
@@ -405,29 +343,25 @@ operating systems, see the sections for each operating system above.
 | Architecture | Aliases         |
 |--------------|-----------------|
 | `arm64`      | `aarch64`       |
-| `vax`        |                 |
 | `x86-64`     | `x86_64`, `x64` |
-| `riscv64`    | `riscv`, `rv64` |
 
 ### Hypervisors
 
 This section lists the available hypervisors, which platforms they can run and
 which runners they can run on.
 
-| Hypervisor | Linux Runner | FreeBSD | OpenBSD | Other Platforms |
-|------------|--------------|---------|---------|-----------------|
-| `qemu`     | ✅           | ✅      | ✅      | ✅             |
-
-The VAX architecture always runs on the [SIMH][simh_builder] simulator.
+| Hypervisor | Linux Runner | FreeBSD | NetBSD | OpenBSD |
+|------------|--------------|---------|--------|---------|
+| `qemu`     | ✅           | ✅      | ✅     | ✅      |
 
 ### Runners
 
 This section lists the different combinations of platforms and on which runners
 they can run.
 
-| Runner                                        | OpenBSD | FreeBSD | NetBSD | DragonFly BSD | MidnightBSD | ARM64 |
-| ----------------------------------------------| ------- | ------- | ------ | ------------- | ----------- | ----- |
-| **Linux**                                     | ✅      | ✅      | ✅     | ✅            | ✅          | ✅   |
+| Runner    | OpenBSD | FreeBSD | NetBSD | ARM64 |
+| --------- | ------- | ------- | ------ | ----- |
+| **Linux** | ✅      | ✅      | ✅     | ✅    |
 
 ## `Linux on Non-x86 Architectures`
 
@@ -536,7 +470,8 @@ commands specified by the user, it aims to boot the guest operating systems as
 fast as possible. This is achieved in a couple of ways:
 
 - By downloading [resources][resources], like the hypervisor and a few other
-  tools, instead of installing them through a package manager
+  tools, instead of installing them through a package manager. Each download
+  is checked against the sha256 pinned for its URL in `src/digests.json`
 
 - The resources that are downloaded use no compression. The size is
   small enough anyway and it's faster to download the uncompressed data than
@@ -604,6 +539,7 @@ First, make the necessary changes in the appropriate [*-builder repository](http
 #### In the Action Repository
 
 1. Update the [`src/version.ts`](src/version.ts) file with the new tag from the previous step
+1. Pin the digests of the new release by running `npm run update-digests`
 1. Compile the TypeScript by running `npm run all`
 
 1. Update the [`.github/workflows/ci.yml`](.github/workflows/ci.yml) file by adding the new version to the existing
@@ -638,7 +574,7 @@ To add support for a new operating system, follow these steps:
      * `<os_name>.ts`: Implement the operating system class extending the `Qemu`
          class.
      * `factory.ts`: Implement the factory class for the operating system.
-     * Look at existing implementations, like Haiku or OmniOS
+     * Look at existing implementations, like FreeBSD or OpenBSD
 
 2. **Write Tests**:
    * Create a corresponding directory under `spec/operating_systems` with the
@@ -647,6 +583,8 @@ To add support for a new operating system, follow these steps:
 
 3. **Update the Main Entry Point**:
    * Add an import for the new operating system's factory in `src/main.ts`.
+   * Add its builder release to `src/version.ts` and run
+       `npm run update-digests`.
 
 4. **Update the CI Configuration**:
    * Add a new job for the operating system in `.github/workflows/ci.yml`.
@@ -667,38 +605,6 @@ To add support for a new operating system, follow these steps:
 By following these steps, you can ensure the new operating system is integrated
 seamlessly into the project.
 
-### Creating a Release
-
-Releases are cut with [relog][relog], driven by the `[Unreleased]` section of
-`changelog.md`. The repo ships a `release.conf` that configures relog for this
-project (master branch, `origin` remote, and a pre-commit hook that bumps the
-`cross-platform-actions/action@vX.Y.Z` reference in this readme).
-
-These steps need to be performed by a maintainer:
-
-1. Make sure the `[Unreleased]` section in `changelog.md` describes everything
-    going into the release. Cross-Platform Action follows the
-    [semantic versioning scheme][semver]; relog derives the next version from
-    the sub-headers under `[Unreleased]`:
-
-    * `### Fixed` only → patch bump
-    * `### Added`, `### Changed`, `### Deprecated` → minor bump
-    * `### Removed` (or "Breaking" anywhere in the section) → major bump
-
-1. From a clean `master` working tree, run `relog` (optionally pass an explicit
-    version like `relog 2.0.0`, or `--dry-run` to preview). It rewrites the
-    changelog, updates this readme, commits, creates an annotated `vX.Y.Z` tag,
-    and prompts before pushing.
-
-1. Pushing the tag triggers the `Release` workflow, which creates a draft
-    release on GitHub with the newly added changelog section as release notes.
-
-1. Review the draft release on GitHub and publish it. Publishing fires the
-    `Update Major Tag` workflow, which force-updates the matching major tag
-    (e.g. `v2`) to point at the published release.
-
-[relog]: https://github.com/jacob-carlborg/relog
-
 ## `Local Development`
 
 ### Prerequisites
@@ -717,7 +623,7 @@ These steps need to be performed by a maintainer:
     ```
 
 1. Navigate to the newly cloned repository: `cd action`
-1. Install the dependencies by running: `npm install`
+1. Install the dependencies by running: `npm ci --ignore-scripts`
 1. Run any of the below npm commands
 
 ### npm Commands
@@ -730,12 +636,13 @@ The following npm commands are available:
 * `package` - Package the GitHub action for distribution and end to end testing
 * `test` - Run unit tests
 * `all` - Will run all of the above commands
+* `update-digests` - Pin the digests of the releases in `src/version.ts`
+* `check-digests` - Check that the pinned digests are up to date
 
 ### Running End to End Tests
 
-The end to end tests can be run locally by running it through [Act][act]. By
-default, resources and VM images will be downloaded from github.com. By running
-a local HTTP server it's possible to point the GitHub action to local resources.
+The end to end tests can be run locally by running it through [Act][act].
+Resources and VM images are downloaded from github.com.
 
 #### Prerequisites
 
@@ -755,33 +662,6 @@ a local HTTP server it's possible to point the GitHub action to local resources.
 1. Package the GitHub action by running: `npm run package`
 1. Run the GitHub action by running: `act --privileged -W test/workflows`
 
-#### Providing Resources Locally
-
-The GitHub action includes a development dependency on a HTTP server. The
-[`test/http`](test/http) directory contains a skeleton of a directory structure
-which matches the URLs that the GitHub action uses to download resources. All
-files within the [`test/http`](test/http) are ignore by Git.
-
-1. Add resources as necessary to the [`test/http`](test/http) directory
-1. In one shell, run the following command to start the HTTP server:
-
-    ```
-    ./node_modules/http-server/bin/http-server test/http -a 127.0.0.1
-    ```
-
-    The `-a` flag configures the HTTP server to only listen for incoming
-    connections from localhost, no external computers will be able to connect.
-
-1. In another shell, run the GitHub action by running:
-
-    ```
-    act --privileged -W test/workflows --env CPA_RESOURCE_URL=<url>
-    ```
-
-    Where `<url>` is the URL inside Docker that points to localhost of the host
-    machine, for macOS, this is `http://host.docker.internal:8080`. By default,
-    the HTTP server is listening on port `8080`.
-
 [qemu]: https://www.qemu.org
 [rsync]: https://en.wikipedia.org/wiki/Rsync
 [resources]: https://github.com/cross-platform-actions/resources
@@ -789,11 +669,6 @@ files within the [`test/http`](test/http) are ignore by Git.
 [openbsd_builder]: https://github.com/cross-platform-actions/openbsd-builder
 [freebsd_builder]: https://github.com/cross-platform-actions/freebsd-builder
 [netbsd_builder]: https://github.com/cross-platform-actions/netbsd-builder
-[simh_builder]: https://github.com/cross-platform-actions/simh-builder
-[haiku_builder]: https://github.com/cross-platform-actions/haiku-builder
-[dragonflybsd_builder]: https://github.com/cross-platform-actions/dragonflybsd-builder
-[midnightbsd_builder]: https://github.com/cross-platform-actions/midnightbsd-builder
-[omnios_builder]: https://github.com/cross-platform-actions/omnios-builder
 [act]: https://github.com/nektos/act
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Unreleased]: #unreleased

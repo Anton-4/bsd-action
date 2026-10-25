@@ -1,5 +1,5 @@
-name: Cross Platform Action
-description: Provides cross platform runner
+name: BSD Action
+description: Runs steps in a FreeBSD, NetBSD or OpenBSD VM, with every download pinned by digest
 author: Jacob Carlborg
 inputs:
   run:
@@ -48,10 +48,6 @@ inputs:
       values are `default` and, where the platform supports it, `microvm`.
       Asking for a variant a platform doesn't have is an error.
     default: default
-  image_url:
-    required: false
-    description: URL for running the action with a custom image.
-    default: ''
   sync_files:
     required: false
     description: |

@@ -8,14 +8,28 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
 jobs:
   build: # make sure build/ci work properly
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7.0.1
-      - run: npm install
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      # The lockfile pins every package; install scripts are not needed.
+      - run: npm ci --ignore-scripts
       - run: npm run all
+      # Fails when a pinned release asset was replaced or a version was bumped
+      # without regenerating src/digests.json.
+      - run: npm run check-digests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Check dist files are up to date
         run: |
           if ! git diff --exit-code dist/; then
@@ -55,7 +69,7 @@ jobs:
 
         host:
           - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
+            work_directory: /home/runner/work/bsd-action/bsd-action
 
         exclude:
           - version: '12.2'
@@ -67,7 +81,7 @@ jobs:
             hostname: ''
             host:
               name: ubuntu-latest
-              work_directory: /home/runner/work/action/action
+              work_directory: /home/runner/work/bsd-action/bsd-action
 
           - version: '12.4'
             architecture:
@@ -76,27 +90,11 @@ jobs:
             hostname: 'runnervmg1sw1.local'
             host:
               name: ubuntu-latest
-              work_directory: /home/runner/work/action/action
-
-          - version: '15.1'
-            architecture:
-              name: riscv64
-            hostname: 'runnervmg1sw1.local'
-            host:
-              name: ubuntu-latest
-              work_directory: /home/runner/work/action/action
-
-          - version: '15.0'
-            architecture:
-              name: riscv64
-            hostname: 'runnervmg1sw1.local'
-            host:
-              name: ubuntu-latest
-              work_directory: /home/runner/work/action/action
+              work_directory: /home/runner/work/bsd-action/bsd-action
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -108,45 +106,6 @@ jobs:
           version: ${{ matrix.version }}
           hostname: ${{ matrix.hostname }}
           uname_release: ${{ matrix.version}}-RELEASE
-          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
-          work_directory: ${{ matrix.host.work_directory }}
-
-  Haiku:
-    name: Haiku ${{ matrix.architecture.name }} ${{ matrix.version.name }} on ${{ matrix.host.name }}
-    runs-on: ${{ matrix.host.name }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        version:
-          - name: 'r1beta6'
-            uname: hrev59866
-
-          - name: 'r1beta5'
-            uname: hrev57937
-
-        architecture:
-          - name: x86-64
-            uname: x86_64
-
-        host:
-          - name: ubuntu-latest
-            work_directory: /boot/home/home/runner/work/action/action
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: test
-        uses: ./.github/workflows/support/test
-        with:
-          name: Haiku
-          architecture: ${{ matrix.architecture.name }}
-          version: ${{ matrix.version.name }}
-          hostname: ${{ matrix.hostname }}
-          uname_version: ${{ matrix.version.uname }}
           uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
           work_directory: ${{ matrix.host.work_directory }}
 
@@ -178,7 +137,7 @@ jobs:
 
         host:
           - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
+            work_directory: /home/runner/work/bsd-action/bsd-action
 
         exclude:
           - version: '6.8'
@@ -186,7 +145,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -203,7 +162,7 @@ jobs:
   NetBSD:
     name: NetBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
     runs-on: ${{ matrix.host.name }}
-    timeout-minutes: ${{ matrix.architecture.timeout || 5 }}
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -223,16 +182,9 @@ jobs:
           - name: arm64
             uname: aarch64
 
-          # NetBSD/VAX runs on the SIMH simulator, which boots slowly, so it
-          # gets a longer timeout. It's only built for some versions (see the
-          # exclusions below).
-          - name: vax
-            uname: vax
-            timeout: 30
-
         host:
           - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
+            work_directory: /home/runner/work/bsd-action/bsd-action
 
         exclude:
           # arm64 images exist only for 10.0 and newer.
@@ -248,25 +200,9 @@ jobs:
           - version: '9.2'
             architecture: { name: arm64 }
 
-          # VAX images exist only for 10.1 and 11.0.
-          - version: '10.0'
-            architecture: { name: vax }
-
-          - version: '9.5'
-            architecture: { name: vax }
-
-          - version: '9.4'
-            architecture: { name: vax }
-
-          - version: '9.3'
-            architecture: { name: vax }
-
-          - version: '9.2'
-            architecture: { name: vax }
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -280,141 +216,6 @@ jobs:
           uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
           work_directory: ${{ matrix.host.work_directory }}
 
-  DragonFlyBSD:
-    name: DragonFlyBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
-    runs-on: ${{ matrix.host.name }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        hostname: [runnervmg1sw1.local]
-        version:
-          - '6.4.2'
-
-        architecture:
-          - name: x86-64
-            uname: x86_64
-
-        host:
-          - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: test
-        uses: ./.github/workflows/support/test
-        with:
-          name: DragonFly
-          operating_system: dragonflybsd
-          architecture: ${{ matrix.architecture.name }}
-          version: ${{ matrix.version }}
-          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
-          hostname: ${{ matrix.hostname }}
-          work_directory: ${{ matrix.host.work_directory }}
-
-  MidnightBSD:
-    name: MidnightBSD ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
-    runs-on: ${{ matrix.host.name }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        hostname: [runnervmg1sw1.local]
-        version:
-          - '4.0.4'
-
-        architecture:
-          - name: x86-64
-            uname: amd64
-
-        host:
-          - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: test
-        uses: ./.github/workflows/support/test
-        with:
-          name: MidnightBSD
-          operating_system: midnightbsd
-          architecture: ${{ matrix.architecture.name }}
-          version: ${{ matrix.version }}
-          uname_release: ${{ matrix.version}}-RELEASE
-          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
-          hostname: ${{ matrix.hostname }}
-          work_directory: ${{ matrix.host.work_directory }}
-
-  OmniOS:
-    name: OmniOS ${{ matrix.architecture.name }} ${{ matrix.version }} on ${{ matrix.host.name }}
-    runs-on: ${{ matrix.host.name }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        hostname: [runnervmg1sw1.local]
-        version:
-          - 'r151056'
-
-        architecture:
-          - name: x86-64
-            uname: i86pc
-
-        host:
-          - name: ubuntu-latest
-            work_directory: /home/runner/work/action/action
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: test
-        uses: ./.github/workflows/support/test
-        with:
-          name: OmniOS
-          architecture: ${{ matrix.architecture.name }}
-          version: ${{ matrix.version }}
-          uname_version: ${{ matrix.version }}
-          uname_hardware: ${{ matrix.architecture.uname || matrix.architecture.name }}
-          hostname: ${{ matrix.hostname }}
-          work_directory: ${{ matrix.host.work_directory }}
-
-  # A custom image predates the bundle and the credential-less login, so this
-  # boots the last release that shipped qcow2 -- the format and the SSH key
-  # expectations a user's own image is most likely to have been built from.
-  test-custom-netbsd-image:
-    timeout-minutes: 5
-    name: Test a custom NetBSD image from before the bundle
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Start VM
-        uses: ./
-        with:
-          operating_system: netbsd
-          architecture: x86-64
-          version: '11.0'
-          image_url: https://github.com/cross-platform-actions/netbsd-builder/releases/download/v0.7.0/netbsd-11.0-x86-64.qcow2
-
-      - name: Test
-        shell: cpa.sh {0}
-        run: uname -a
-
   test-microvm-variant:
     timeout-minutes: 5
     name: Test the microvm variant
@@ -422,7 +223,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -452,7 +253,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -484,7 +285,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -499,33 +300,6 @@ jobs:
         shell: cpa.sh {0}
         run: env | sort
 
-  test-haiku-file-ownership:
-    timeout-minutes: 5
-    name: Test Haiku file ownership after rsync
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - if: env.ACT
-        run: |
-          sudo apt update
-          sudo apt install -y dosfstools rsync fdisk
-
-      - name: Start VM
-        uses: ./
-        with:
-          operating_system: haiku
-          architecture: x86-64
-          version: r1beta6
-
-      - name: Test
-        shell: cpa.sh {0}
-        run: '! find . -nouser | grep -q .'
-
   test-cpu-count-config:
     timeout-minutes: 5
     name: Test configuring CPU count
@@ -533,7 +307,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -551,29 +325,6 @@ jobs:
           sysctl hw.ncpu
           [ `sysctl -n hw.ncpu` = 8 ]
 
-  test-custom-vm-image:
-    timeout-minutes: 5
-    name: Test custom VM image
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Start VM
-        uses: ./
-        with:
-          operating_system: openbsd
-          architecture: x86-64
-          version: '7.3'
-          image_url: https://github.com/cross-platform-actions/test-custom-image-builder/releases/download/v1.0.0/openbsd-7.3-x86-64.qcow2
-
-      - name: Test
-        shell: cpa.sh {0}
-        run: test -f /foo
-
   test-cpu-features:
     timeout-minutes: 5
     name: Test CPU features
@@ -581,7 +332,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -612,7 +363,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -653,7 +404,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -679,7 +430,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -706,7 +457,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -744,7 +495,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -774,7 +525,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -832,7 +583,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -866,50 +617,6 @@ jobs:
         shell: cpa.sh {0}
         run: test -f /tmp/reboot_marker
 
-  test-reboot-shell-haiku:
-    timeout-minutes: 15
-    name: Test reboot shell on Haiku
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - if: env.ACT
-        shell: bash
-        run: |
-          apt update
-          apt install -y dosfstools rsync fdisk
-
-      - name: Start VM
-        uses: ./
-        with:
-          operating_system: haiku
-          architecture: x86-64
-          version: r1beta6
-
-      - name: Verify VM is running before reboot
-        shell: cpa.sh {0}
-        run: '[ "`uname`" = Haiku ]'
-
-      - name: Reboot VM
-        run: cpa.sh --reboot
-
-      - name: Verify VM is running after reboot
-        shell: cpa.sh {0}
-        run: '[ "`uname`" = Haiku ]'
-
-      # combine custom shell with --reboot flag
-      - name: Reboot via post-flag
-        shell: cpa.sh {0} --reboot
-        run: '[ "`uname`" = Haiku ]'
-
-      - name: Verify VM is running after second reboot
-        shell: cpa.sh {0}
-        run: '[ "`uname`" = Haiku ]'
-
   test-sync-shell:
     timeout-minutes: 10
     name: Test sync shell
@@ -917,7 +624,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -999,7 +706,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

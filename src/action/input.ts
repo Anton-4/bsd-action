@@ -17,7 +17,6 @@ export class Input {
   private run_?: string
   private operatingSystem_?: os.Kind
   private version_?: string
-  private imageURL_?: string
   private shell_?: Shell
   private environmentVariables_?: string
   private architecture_?: architecture.Kind
@@ -37,11 +36,6 @@ export class Input {
     return (this.version_ = core.getInput('version', {
       required: true
     }))
-  }
-
-  get imageURL(): string {
-    if (this.imageURL_ !== undefined) return this.imageURL_
-    return (this.imageURL_ = core.getInput('image_url'))
   }
 
   get operatingSystem(): os.Kind {
@@ -182,7 +176,6 @@ export class Input {
     const components = [
       this.operatingSystem,
       this.version,
-      this.imageURL,
       this.shell,
       this.environmentVariables,
       this.architecture,

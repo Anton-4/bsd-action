@@ -3,7 +3,6 @@ import * as os_module from 'os'
 import * as path from 'path'
 
 import NetBsd from '../../../src/operating_systems/netbsd/netbsd'
-import NetBsdVax from '../../../src/operating_systems/netbsd/vax'
 import * as hostModule from '../../../src/host'
 import * as arch from '../../../src/architectures/factory'
 import * as archKind from '../../../src/architectures/kind'
@@ -12,7 +11,6 @@ import HostQemu from '../../../src/host_qemu'
 import * as hypervisor from '../../../src/hypervisor'
 import * as qemu from '../../../src/qemu_vm'
 import * as netbsdQemuVm from '../../../src/operating_systems/netbsd/qemu_vm'
-import * as netbsdVaxVm from '../../../src/operating_systems/netbsd/vax_vm'
 import {Input} from '../../../src/action/input'
 import {Variant} from '../../../src/action/variant'
 import * as vmModule from '../../../src/vm'
@@ -167,67 +165,6 @@ describe('NetBSD OperatingSystem', () => {
           Variant.default,
           Variant.microvm
         ])
-      })
-    })
-
-    describe('VAX architecture', () => {
-      let vaxArchitecture = arch.create(
-        archKind.Kind.vax,
-        host,
-        osKind,
-        host.hypervisor
-      )
-      let netbsdVax = new NetBsdVax(vaxArchitecture, '0.0.0')
-
-      it('does not require an SSH key', () => {
-        expect(netbsdVax.requiresSshKey).toBe(false)
-      })
-
-      // `microvm` is a QEMU machine type and this runs on SIMH, so the variant
-      // NetBSD offers elsewhere isn't one of the choices here.
-      it('rejects the microvm variant', () => {
-        expect(netbsdVax.supportedVariants).toEqual([Variant.default])
-        expect(() => netbsdVax.validateVariant(Variant.microvm)).toThrowError(
-          /not supported by netbsd on vax.*Supported variants are: default/
-        )
-      })
-
-      // The base class derives the name from the class name, which would send
-      // the download to a `netbsdvax-builder` repository that doesn't exist.
-      it('downloads its image from the NetBSD builder', () => {
-        expect(netbsdVax.virtualMachineImageUrl).toEqual(
-          'https://github.com/cross-platform-actions/netbsd-builder/releases/' +
-            `download/${netbsdVax.virtualMachineImageReleaseVersion}/` +
-            'netbsd-0.0.0-vax.tar.zst'
-        )
-      })
-
-      it('creates a SIMH virtual machine', () => {
-        let vaxVmSpy = spyOn(netbsdVaxVm, 'Vm')
-
-        netbsdVax.createVirtualMachine(
-          hypervisorDirectory,
-          resourcesDirectory,
-          firmwareDirectory,
-          input,
-          config
-        )
-
-        expect(vaxVmSpy).toHaveBeenCalledOnceWith(
-          hypervisorDirectory,
-          resourcesDirectory,
-          vaxArchitecture,
-          input,
-          {
-            ...config,
-            ssHostPort: 2847,
-            cpu: 'ka655x',
-            machineType: 'microvax3900',
-            firmware: firmwareDirectory,
-            microvmFirmware: firmwareDirectory,
-            kernel: `${resourcesDirectory}/kernel`
-          }
-        )
       })
     })
   })

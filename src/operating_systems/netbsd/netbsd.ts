@@ -9,13 +9,6 @@ import {Variant} from '../../action/variant'
 
 @operatingSystem
 export default class NetBsd extends Qemu {
-  // The builder repository and the image file name are both built from this,
-  // and the base class derives it from the class name -- so without this the
-  // NetBsdVax subclass would look in a `netbsdvax-builder` repository.
-  override get name(): string {
-    return 'netbsd'
-  }
-
   get virtualMachineImageReleaseVersion(): string {
     return versions.operating_system.netbsd
   }
@@ -56,9 +49,7 @@ export default class NetBsd extends Qemu {
   }
 
   // The images accept an SSH login with no credential at all, so there's no key
-  // to deliver and no resources disk to carry it on. VAX never could mount that
-  // disk, which is where the passwordless login came from; every architecture
-  // does it that way now.
+  // to deliver and no resources disk to carry it on.
   override get requiresSshKey(): boolean {
     return false
   }
